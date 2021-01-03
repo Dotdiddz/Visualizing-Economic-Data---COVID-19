@@ -1,0 +1,75 @@
+---
+title: "Growth Rates Data Sourcing"
+author: "D.Gay"
+date: "1/3/2021"
+output: html_document
+---
+
+```{r message=FALSE, warning=FALSE, results='hide'}
+require(OECD)
+require(dplyr)
+```
+
+### Gathering data
+
+```{r}
+dataset_list <- get_datasets()
+head(dataset_list, 3)
+search_dataset("Quarterly", data = dataset_list)
+```
+
+### Proceeding with the 'Quarterly National Accounts' dataset
+
+```{r}
+dataset <- "QNA"
+dstruc <- get_data_structure(dataset)
+str(dstruc, max.level = 1)
+dstruc$VAR_DESC
+```
+
+```{r}
+dstruc$MEASURE
+```
+
+We find it in variable "GPSA", which pairs to "Growth rate compared to previous quarter, seasonally adjusted"
+
+### Checking to view the latest period recorded
+
+Looking specifically at the periods directly preceding the pandemic (2018 and 2019 all quarters) and throughout the pandemic (2020 up to 3rd quarter, or current)
+
+We will consider growth rates from 2015-2018 to inform the direction of change for OECD countries leading up to the periods directly preceding the pandemic.
+
+```{r}
+tail(dstruc$TIME, 10)
+```
+
+
+### Filtering data
+
+-- 37 OECD nations
+
+-- GPSA: Growth rate compared to previous quarter, seasonally adjusted
+
+-- Quarterly accounts from 2015 through 2020
+
+
+```{r}
+df <- get_dataset("QNA", 
+                  filter = c(list(slice_head(dstruc$LOCATION, n=37)$id),
+                             "B1_GE", 
+                             "GPSA", 
+                             "Q"), 
+                  start_time = 2015, 
+                  end_time = 2020)
+```
+
+
+### Save df to a .csv; all data used for this visualization lives here.
+
+```{r}
+df <- within(df, rm(TIME_FORMAT, UNIT, POWERCODE, OBS_STATUS))
+names(df)[names(df) == "obsTime"] <- "QUARTER"
+names(df)[names(df) == "obsValue"] <- "GROWTH_RATE"
+summary(df)
+```
+
