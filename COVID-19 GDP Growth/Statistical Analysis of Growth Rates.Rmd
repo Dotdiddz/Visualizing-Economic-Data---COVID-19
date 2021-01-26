@@ -1,0 +1,274 @@
+---
+title: "Statistical Analysis of Growth Rates"
+author: "D.Gay"
+date: "1/3/2021"
+output: html_document
+---
+
+```{r message=FALSE, warning=FALSE, results='hide'}
+require(OECD)
+require(dplyr)
+require(plyr)
+require(zoo)
+require(ggplot2)
+require(sm)
+```
+
+### Data
+
+```{r}
+dataset_list <- get_datasets()
+head(dataset_list, 3)
+search_dataset("Quarterly", data = dataset_list)
+
+dataset <- "QNA"
+dstruc <- get_data_structure(dataset)
+str(dstruc, max.level = 1)
+```
+
+-- 37 OECD nations
+
+-- GPSA: Growth rate compared to previous quarter, seasonally adjusted
+
+-- Quarterly accounts from 2015 through 2020
+
+
+```{r}
+df <- get_dataset("QNA", 
+                  filter = c(list(slice_head(dstruc$LOCATION, n=37)$id),
+                             "B1_GE", 
+                             "GPSA", 
+                             "Q"), 
+                  start_time = 2015, 
+                  end_time = 2020)
+```
+
+
+All data used for this visualization comes from df.
+
+```{r}
+df <- within(df, rm(TIME_FORMAT, UNIT, POWERCODE, OBS_STATUS))
+names(df)[names(df) == "obsTime"] <- "QUARTER"
+names(df)[names(df) == "obsValue"] <- "GROWTH_RATE"
+summary(df)
+```
+
+```{r}
+precoronavirusdf_fouryear <- df
+```
+```{r}
+precoronavirusdf_fouryear <- as.data.frame(precoronavirusdf_fouryear)
+precoronavirusdf_fouryear$QUARTER <- as.character(precoronavirusdf_fouryear$QUARTER)
+```
+```{r}
+subset_fouryear <- (precoronavirusdf_fouryear$QUARTER != "2020-Q1") & (precoronavirusdf_fouryear$QUARTER != "2020-Q2") & (precoronavirusdf_fouryear$QUARTER != "2020-Q3")
+unique(subset_fouryear)
+precoronavirusdf_fouryear <- subset(precoronavirusdf_fouryear, subset_fouryear)
+unique(precoronavirusdf_fouryear$QUARTER)
+```
+
+```{r}
+OECD_FourYear_Average_GrowthbyCountry <- ddply(precoronavirusdf_fouryear,.(LOCATION),summarise,fiveyeargrowthrate=mean(GROWTH_RATE))
+OECD_FourYear_Average_GrowthbyCountry
+```
+
+
+# 2 year growth rates by OECD member country for years 2017-2019
+
+Now to look at growth rates by OECD member countries over the last 2 years directly preceding the onset of COVID-19, 2017-2019:
+
+```{r}
+precoronavirusdf_twoyear<- precoronavirusdf_fouryear
+subset_twoyear <- (precoronavirusdf_fouryear$QUARTER == "2017-Q1") | (precoronavirusdf_fouryear$QUARTER == "2017-Q2") | (precoronavirusdf_fouryear$QUARTER == "2017-Q3") | (precoronavirusdf_fouryear$QUARTER == "2017-Q4") | (precoronavirusdf_fouryear$QUARTER == "2018-Q1") | (precoronavirusdf_fouryear$QUARTER == "2018-Q2") | (precoronavirusdf_fouryear$QUARTER == "2018-Q3") | (precoronavirusdf_fouryear$QUARTER == "2018-Q4") | (precoronavirusdf_fouryear$QUARTER == "2019-Q1") | (precoronavirusdf_fouryear$QUARTER == "2019-Q2") | (precoronavirusdf_fouryear$QUARTER == "2019-Q3") | (precoronavirusdf_fouryear$QUARTER == "2019-Q4")
+unique(subset_twoyear)
+precoronavirusdf_twoyear <- subset(precoronavirusdf_twoyear, subset_twoyear)
+unique(precoronavirusdf_twoyear$QUARTER)
+OECD_TwoYear_Average_GrowthbyCountry <- ddply(precoronavirusdf_twoyear,.(LOCATION),summarise,twoyeargrowthrate=mean(GROWTH_RATE))
+OECD_TwoYear_Average_GrowthbyCountry
+```
+
+
+# OECD and USA Growth Rate Trends
+
+
+Next we'll create our dataset from which we will visualize the trends of the growth rates across countries over time, specifically the extent of the country's 4 year growth rate and the change in growth rate across the preceding 2 years.
+
+```{r}
+visualizeprecedinggrowthrates <- merge(OECD_FourYear_Average_GrowthbyCountry, OECD_TwoYear_Average_GrowthbyCountry,by="LOCATION")
+visualizeprecedinggrowthrates
+```
+
+We want to see the average growth rates by OECD nation throughout the COVID-19 pandemic, from 1st quarter - 3rd quarter 2020. NOTE: We haven't yet considered the period of onset of COVID-19 for each respective nation. We will have to do so to better normalize the baseline of the curves for a more accurate comparison. For now we will consider the period of the first sequencing of the novel virus, which occurred in the 1st quarter of 2020 (January 11, 2020), to be the onset of the observable impacts due to COVID-19.
+
+```{r}
+quarterly_coronavirus_growthrates<- df
+subset_coronavirusgrowth <- (df$QUARTER == "2020-Q1") | (df$QUARTER == "2020-Q2") | (df$QUARTER == "2020-Q3")
+unique(subset_coronavirusgrowth)
+quarterly_coronavirus_growthrates <- subset(df, subset_coronavirusgrowth)
+unique(quarterly_coronavirus_growthrates$QUARTER)
+OECD_Coronavirus_GrowthbyCountry <- ddply(quarterly_coronavirus_growthrates,.(LOCATION),summarise,coronavirusgrowthrate=mean(GROWTH_RATE))
+OECD_Coronavirus_GrowthbyCountry
+```
+
+Here we feed the average COVID-19 growth rates by country into our visualization dataframe to do an eye check on the numbers, ruling out any egregious hypotheses we can make and solidifying if we want to pursue testing on a hypothesis that makes sense.
+
+```{r}
+visualizeprecedinggrowthrates <- merge(visualizeprecedinggrowthrates, OECD_Coronavirus_GrowthbyCountry,by="LOCATION")
+visualizeprecedinggrowthrates
+```
+
+Expectedly, we observe that countries experienced overwhelmingly negative average growth during the COVID-19 pandemic.
+
+
+# Growth rates per quarter during COVID-19
+
+
+Now we would like to see a breakdown of the GDP growth rates per quarter to gain some clarity on the figures shown above. For this we will look at the change in the growth rates throughout the quarters after the onset of the coronavirus, starting with the change between Q4 of 2019 and Q1 of 2020.
+```{r}
+quarterly_coronavirus_growthrates_breakdown<- df
+subset_coronavirusgrowth_breakdown <- (df$QUARTER == "2019-Q4") | (df$QUARTER == "2020-Q1") | (df$QUARTER == "2020-Q2") | (df$QUARTER == "2020-Q3")
+unique(subset_coronavirusgrowth_breakdown)
+quarterly_coronavirus_growthrates_breakdown <- subset(df, subset_coronavirusgrowth_breakdown)
+unique(quarterly_coronavirus_growthrates_breakdown$QUARTER)
+```
+
+```{r message=FALSE}
+library(data.table)
+```
+
+```{r}
+quarterly_coronavirus_growthrates_breakdown
+quarterly_growthrates_dt <- as.data.table(quarterly_coronavirus_growthrates_breakdown)
+quarterly_growthrates_dt$GROWTH_RATE <- round(quarterly_growthrates_dt$GROWTH_RATE, digits = 2)
+
+quarterly_growthrates_dt
+quarterly_coronavirus_growthrates_breakdown_dt <- subset(quarterly_growthrates_dt, select = c(LOCATION, QUARTER, GROWTH_RATE))
+quarterly_coronavirus_growthrates_breakdown_dt
+```
+
+Now we will reformat our data table "quarterly_coronavirus_growthrates_breakdown_dt" from a categorization by location to one based on quarter for easier manipulation.
+
+```{r}
+quarterly_coronavirus_growthrates_breakdown_dt <- ddply(quarterly_coronavirus_growthrates_breakdown_dt,.(QUARTER))
+quarterly_coronavirus_growthrates_breakdown_dt
+```
+
+
+Here we calculate the OECD mean growth rates across quarters after the onset of COVID-19 to see how the U.S stacks up.
+
+
+```{r}
+COVID19_quarterly_trends <- ddply(quarterly_coronavirus_growthrates_breakdown_dt,.(QUARTER),summarise,Mean_GROWTH_RATE=mean(GROWTH_RATE))
+COVID19_quarterly_trends
+```
+
+```{r}
+names(COVID19_quarterly_trends)[names(COVID19_quarterly_trends) == "QUARTER"] <- "Quarter"
+names(COVID19_quarterly_trends)[names(COVID19_quarterly_trends) == "Mean_GROWTH_RATE"] <- "OECD_Average_GROWTH_RATE"
+COVID19_quarterly_trends
+```
+
+```{r}
+US_COVID19_GROWTH_RATE <- subset(quarterly_coronavirus_growthrates_breakdown_dt, quarterly_coronavirus_growthrates_breakdown_dt$LOCATION == "USA")
+US_COVID19_GROWTH_RATE
+COVID19_quarterly_trends$US_GROWTH_RATE <- US_COVID19_GROWTH_RATE$GROWTH_RATE
+COVID19_quarterly_trends
+```
+
+Here we can visualize the trends in growth rates during COVID-19 with a standard scatter plot. We can see that the US and OECD member countries appear to have a similar starting point at the onset of COVID-19, surpassed the OECD average growth rate for Q4 of 2019 - Q2 of 2020, and experiences a lower growth rate than OECD average from the period of Q3 - Q4. 
+
+```{r}
+COVID19_quarterly_trends$Quarter_End <- as.Date(as.yearqtr(COVID19_quarterly_trends$Quarter, format = "%Y-Q%q"))
+COVID19_quarterly_trends
+plot(COVID19_quarterly_trends$Quarter_End, COVID19_quarterly_trends$US_GROWTH_RATE, type = "b", frame = FALSE, pch = 19, 
+     col = "red", xlab = "Quarter End", ylab = "Growth Rate in %", ylim=range(-10,10))
+lines(COVID19_quarterly_trends$Quarter_End, COVID19_quarterly_trends$OECD_Average_GROWTH_RATE, pch = 18, col = "blue", type = "b", lty = 2)
+legend("topleft", legend=c("USA", "OECD"),
+       col=c("red", "blue"), lty = 1:2, cex=0.8)
+```
+
+Now we want to determine whether the United States was on par with the average growth of the OECD at the time of the pandemic onset, looking at primarily at the density of growth rates for OECD nations.
+
+
+# Distribution
+
+
+Probability Density Function:
+
+
+```{r}
+density_OECD <- density(precoronavirusdf_fouryear$GROWTH_RATE)
+plot(density_OECD, frame = FALSE, col = "red", main = "Distribution of Growth Rates Preceding COVID-19", ylim=range(0,2), xlim=range(-6,6))
+precoronavirus_fouryear_USA <- precoronavirusdf_fouryear$LOCATION == "USA"
+USAfouryeargrowth <- subset(precoronavirusdf_fouryear, precoronavirus_fouryear_USA)
+lines(density(USAfouryeargrowth$GROWTH_RATE), col = "blue")
+legend("topleft", legend=c("OECD", "USA"),
+       col=c("red", "blue"), lty = 1:2, cex=0.8)
+mean(USAfouryeargrowth$GROWTH_RATE)
+median(USAfouryeargrowth$GROWTH_RATE)
+median(precoronavirusdf_fouryear$GROWTH_RATE)
+```
+
+
+# T-test pre-COVID
+
+It is apparent from the above density function that the United States experienced a similar growth rate to the OECD nations prior to the onset of COVID-19. We then test to see if the difference in means is significant. If it is not, we will move on to testing the difference between growth rates after the onset of COVID-19.
+
+
+```{r}
+t.test(USAfouryeargrowth$GROWTH_RATE, precoronavirusdf_fouryear$GROWTH_RATE)
+```
+
+We find that the difference in means for prior to the COVID-19 pandemic ARE significant, so we cannot assume the U.S began the pre-pandemic quarter at the same performance, rather accept the alternative hypothesis that the U.S began the pandemic with a higher GDP growth rate than that of its OECD counterparts.
+
+
+# T-test post-COVID
+
+Now we will test for the difference in means POST COVID-19 onset, to determine if the US did significantly better or worse during the periods following the pandemic onset.
+
+```{r}
+OECD_Quarter1 <- quarterly_coronavirus_growthrates_breakdown_dt$QUARTER == "2019-Q4"
+OECD_Quarter1 <- subset(quarterly_coronavirus_growthrates_breakdown_dt, OECD_Quarter1)
+OECD_Quarter1
+mean_quarter1 <- mean(OECD_Quarter1$GROWTH_RATE)
+mean_quarter1
+sd_quarter1 <- sd(OECD_Quarter1$GROWTH_RATE)
+CI <- qnorm(.05)
+CI
+ME1 <- CI * (sd_quarter1 / sqrt(37))
+ME1
+mean_quarter1 - ME1
+mean_quarter1 + ME1
+US_COVID19_GROWTH_RATE
+OECD_Quarter2 <- quarterly_coronavirus_growthrates_breakdown_dt$QUARTER == "2020-Q1"
+OECD_Quarter2 <- subset(quarterly_coronavirus_growthrates_breakdown_dt, OECD_Quarter2)
+OECD_Quarter2
+mean_quarter2 <- mean(OECD_Quarter2$GROWTH_RATE)
+mean_quarter2
+sd_quarter2 <- sd(OECD_Quarter2$GROWTH_RATE)
+ME2 <- CI * (sd_quarter2 / sqrt(37))
+ME2
+mean_quarter2 - ME2
+mean_quarter2 + ME2
+US_COVID19_GROWTH_RATE
+OECD_Quarter3 <- quarterly_coronavirus_growthrates_breakdown_dt$QUARTER == "2020-Q2"
+OECD_Quarter3 <- subset(quarterly_coronavirus_growthrates_breakdown_dt, OECD_Quarter3)
+OECD_Quarter3
+mean_quarter3 <- mean(OECD_Quarter3$GROWTH_RATE)
+mean_quarter3
+sd_quarter3 <- sd(OECD_Quarter3$GROWTH_RATE)
+ME3 <- CI * (sd_quarter3 / sqrt(37))
+mean_quarter3 - ME3
+mean_quarter3 + ME3
+US_COVID19_GROWTH_RATE
+OECD_Quarter4 <- quarterly_coronavirus_growthrates_breakdown_dt$QUARTER == "2020-Q3"
+OECD_Quarter4 <- subset(quarterly_coronavirus_growthrates_breakdown_dt, OECD_Quarter4)
+OECD_Quarter4
+mean_quarter4 <- mean(OECD_Quarter4$GROWTH_RATE)
+mean_quarter4
+sd_quarter4 <- sd(OECD_Quarter4$GROWTH_RATE)
+ME4 <- CI * (sd_quarter4 / sqrt(37))
+mean_quarter4 - ME4
+mean_quarter4 + ME4
+US_COVID19_GROWTH_RATE
+```
