@@ -140,41 +140,6 @@ EASTERN_EUROPE_MEAN_GROWTH$YEAR <- year(EASTERN_EUROPE_MEAN_GROWTH$QUARTER)
 WESTERN_EUROPE_MEAN_GROWTH$YEAR <- year(WESTERN_EUROPE_MEAN_GROWTH$QUARTER)
 
 
-# Connect to database
-db <- dbConnect(RMariaDB::MariaDB(), user='root', password='dotdiddy', dbname='GDPGrowthRates', host='localhost')
-
-# Write data to database
-dbWriteTable(db, "GROWTH RATE DATA - RAW", rawdata)
-dbWriteTable(db, "OECD DATA 2006-2020", OECDdata)
-dbWriteTable(db, "US DATA 2006-2020", USdata)
-
-# Read data from database
-#db <- dbConnect(RMariaDB::MariaDB(), user='root', password='dotdiddy', dbname='GDPGrowthRates', host='localhost')
-#dbListTables(db)
-#dbReadTable(db, "OECD DATA 2006-2020", OECDdata)
-#dbReadTable(db, "US DATA 2006-2020", OECDdata)
-
-# Visualize data spanning 2006-2020
-## Graph
-
-# #TEST
-# GROWTH_RATES_STATIC <- ggplot(OECDdata, aes(x = QUARTER, y=GROWTH_RATE, colour = factor(REGION))) +
-#   geom_point(show.legend = FALSE, alpha = 0.1) +
-#   theme_tufte() +
-#   geom_point(aes(QUARTER, MEAN_GROWTH_RATE), ASIA_MEAN_GROWTH, size=1) +
-#   geom_point(aes(QUARTER, MEAN_GROWTH_RATE), PACIFIC_ISLANDS_MEAN_GROWTH, size=1) +
-#   geom_point(aes(QUARTER, MEAN_GROWTH_RATE), MIDDLE_EAST_MEAN_GROWTH, size=1) +
-#   geom_point(aes(QUARTER, MEAN_GROWTH_RATE), NORTH_AMERICA_MEAN_GROWTH, size=1) +
-#   geom_point(aes(QUARTER, MEAN_GROWTH_RATE), SOUTH_AMERICA_MEAN_GROWTH, size=1) +
-#   geom_point(aes(QUARTER, MEAN_GROWTH_RATE), EASTERN_EUROPE_MEAN_GROWTH, size=1) +
-#   geom_point(aes(QUARTER, MEAN_GROWTH_RATE), WESTERN_EUROPE_MEAN_GROWTH, size=1) +
-#   geom_point(aes(QUARTER, GROWTH_RATE), USdata, size = 1) +
-#   labs(x = "YEAR", y = "GROWTH RATE IN %") +
-#   scale_y_continuous(breaks = scales::pretty_breaks(n = 6)) +
-#   scale_x_continuous(breaks = scales::pretty_breaks(n = 10)) 
-# GROWTH_RATES_STATIC
-# ggplotly(GROWTH_RATES_STATIC) #This is way prettier than with ggplots alone
-
 # Prepare data for plotly
 require(plotly)
 
@@ -398,8 +363,7 @@ GDP_Growth_Visualizer
 
 saveWidget(GDP_Growth_Visualizer,
                         "GDP_GROWTH_RATES.html",
-                        selfcontained=FALSE,
-                        libdir=getwd())
+                        selfcontained=FALSE)
 # #libdir="\\\\wsl$\\Ubuntu\\home\\braintree\\site\\limetree.global\\assets\\js\\COVID-19-Economic-Data")
 saveWidget(as_widget(comparison),
                         "RECESSION_COMPARISONS.html",
